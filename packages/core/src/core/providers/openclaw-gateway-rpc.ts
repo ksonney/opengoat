@@ -9,7 +9,7 @@ const DEFAULT_GATEWAY_URL = `ws://127.0.0.1:${DEFAULT_GATEWAY_PORT}`;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const CONNECT_DELAY_MS = 750;
 const AGENT_CALL_TIMEOUT_MS = 630_000;
-const PROTOCOL_VERSION = 3;
+const PROTOCOL_VERSION = 4;
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
 interface GatewayConnectionDetails {

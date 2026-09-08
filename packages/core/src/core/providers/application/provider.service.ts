@@ -553,9 +553,13 @@ export class ProviderService {
   public async getOpenClawSkillsStatusViaGateway(
     paths: OpenGoatPaths,
     inputEnv?: NodeJS.ProcessEnv,
+    agentId?: string,
   ): Promise<Record<string, unknown>> {
     const env = await this.resolveProviderEnv(paths, OPENCLAW_PROVIDER_ID, inputEnv);
-    const payload = await this.callGatewayMethod(env, "skills.status", {});
+    const normalizedAgentId = normalizeAgentId(agentId ?? "");
+    const payload = await this.callGatewayMethod(env, "skills.status", {
+      ...(normalizedAgentId ? { agentId: normalizedAgentId } : {}),
+    });
     return asRecord(payload);
   }
 
