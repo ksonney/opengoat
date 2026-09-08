@@ -2684,7 +2684,10 @@ export class OpenGoatService {
     const createdPaths: string[] = [];
     const skippedPaths: string[] = [];
     const removedPaths: string[] = [];
-    const managedSkillsSync = await this.removeOpenClawManagedRoleSkills(paths);
+    const managedSkillsSync = await this.removeOpenClawManagedRoleSkills(
+      paths,
+      agentId,
+    );
     createdPaths.push(...managedSkillsSync.createdPaths);
     skippedPaths.push(...managedSkillsSync.skippedPaths);
     removedPaths.push(...managedSkillsSync.removedPaths);
@@ -2724,6 +2727,7 @@ export class OpenGoatService {
 
   private async removeOpenClawManagedRoleSkills(
     paths: ReturnType<OpenGoatPathsProvider["getPaths"]>,
+    preferredAgentId?: string,
   ): Promise<{
     createdPaths: string[];
     skippedPaths: string[];
@@ -2737,7 +2741,10 @@ export class OpenGoatService {
       };
     }
 
-    const managedSkillsDir = await this.resolveOpenClawManagedSkillsDir(paths);
+    const managedSkillsDir = await this.resolveOpenClawManagedSkillsDir(
+      paths,
+      preferredAgentId,
+    );
     if (!managedSkillsDir) {
       return {
         createdPaths: [],
@@ -2803,10 +2810,19 @@ export class OpenGoatService {
 
   private async resolveOpenClawManagedSkillsDir(
     paths: ReturnType<OpenGoatPathsProvider["getPaths"]>,
+    preferredAgentId?: string,
   ): Promise<string | null> {
     if (this.openClawManagedSkillsDirCache !== undefined) {
       return this.openClawManagedSkillsDirCache;
     }
+
+    // OpenClaw 2026.9.1 requires an explicit agent when more than one agent
+    // is configured on the gateway ("skills list" no longer falls back to a
+    // sole/default agent silently); it throws an AgentSelectionRequiredError
+    // instead. Always disambiguate with --agent so this keeps working once
+    // opengoat has provisioned more than one agent on a shared gateway.
+    const agentId =
+      normalizeAgentId(preferredAgentId ?? "") || OPENCLAW_DEFAULT_AGENT_ID;
 
     const providerConfig = await this.providerService.getProviderConfig(
       paths,
@@ -2817,9 +2833,10 @@ export class OpenGoatService {
       ...(providerConfig?.env ?? {}),
     };
     try {
-      const skillsList = await this.runOpenClaw(["skills", "list", "--json"], {
-        env,
-      });
+      const skillsList = await this.runOpenClaw(
+        ["skills", "list", "--json", "--agent", agentId],
+        { env },
+      );
       if (skillsList.code !== 0) {
         throw new Error(
           `OpenClaw skills list failed (exit ${skillsList.code}). ${
@@ -2845,7 +2862,11 @@ export class OpenGoatService {
     }
 
     const skillsStatus =
-      await this.providerService.getOpenClawSkillsStatusViaGateway(paths, env);
+      await this.providerService.getOpenClawSkillsStatusViaGateway(
+        paths,
+        env,
+        agentId,
+      );
     const managedSkillsDir = extractManagedSkillsDir(skillsStatus);
     this.openClawManagedSkillsDirCache = managedSkillsDir;
     return managedSkillsDir;

@@ -990,6 +990,53 @@ describe("OpenGoatService", () => {
     );
   });
 
+  it("creates an agent when OpenClaw's skills list requires --agent in a multi-agent gateway", async () => {
+    const root = await createTempDir("opengoat-service-");
+    roots.push(root);
+
+    // OpenClaw 2026.9.1 stopped silently defaulting "skills list" to a sole
+    // agent once more than one agent is configured on the gateway; it now
+    // requires an explicit --agent and fails otherwise. Simulate that here.
+    const commandRunner = createRuntimeDefaultsCommandRunner(
+      root,
+      async (request) => {
+        if (
+          request.args[0] === "skills" &&
+          request.args[1] === "list" &&
+          request.args.includes("--json") &&
+          !request.args.includes("--agent")
+        ) {
+          return {
+            code: 1,
+            stdout: "",
+            stderr:
+              "Multiple agents are configured. Pass --agent <id> to select a configured agent.",
+          };
+        }
+        return undefined;
+      },
+    );
+
+    const { service } = createService(root, new FakeOpenClawProvider(), commandRunner);
+    await service.initialize();
+
+    const created = await service.createAgent("Marcos", {
+      type: "individual",
+      reportsTo: "goat",
+    });
+
+    expect(created.agent.id).toBe("marcos");
+    expect(created.runtimeSync?.code).toBe(0);
+
+    const skillsListRequests = commandRunner.requests.filter(
+      (request) => request.args[0] === "skills" && request.args[1] === "list",
+    );
+    expect(skillsListRequests.length).toBeGreaterThan(0);
+    for (const request of skillsListRequests) {
+      expect(request.args).toContain("--agent");
+    }
+  });
+
   it("repairs stale OpenClaw goat workspace mapping to OPENGOAT_HOME", async () => {
     const root = await createTempDir("opengoat-service-");
     roots.push(root);
